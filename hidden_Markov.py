@@ -5,25 +5,30 @@
 and Hidden Markov Models (HMM)
 
 requires numpy >= 1.7
+note: scipy >= 0.16 will be needed to set a non global rvs random seed
 """
 
 from __future__ import division, print_function, unicode_literals
 import numpy as np
+import scipy.stats as stats
 
 
 class MarkovChain(object):
     def __init__(self, transit, states = None, initial_proba = None):
-        '''Build a Markov chain model
+        '''Markov chain model
         
         Parameters
         ----------
-        
-        transit: 2-D array-like
+        transit : 2-D array-like
             Transition matrix of the chain
             
             T_ij = Proba(S_{k+1} = j| S_{k} = i)
             
             The sum of each line should be one (stochastic matrix).
+        states : sequence, optional
+            the name of the states, optional
+        initial_proba : 1D array-like
+            initial probability of each state
         '''
         T = transit
         # T should be a square matrix:
@@ -44,14 +49,17 @@ class MarkovChain(object):
         
         self.initial_proba = initial_proba
 
-    def trajectory_gen(self, initial_state=None, rng=None, integer_states=False):
+    def gen(self, initial_state=None, rng=None):
         '''generator of a sequence of states'''
+        gen = self.gen_integers(initial_state, rng)
+        
+        for s in gen:
+            yield self.states[s]
+    
+    def gen_integers(self, initial_state=None, rng=None):
+        '''generator of a sequence of integer states'''
         n = self.n_states
         T = self.transit
-        if integer_states:
-            states = np.arange(n)
-        else:
-            states = self.states
         if rng is None:
             rng = np.random.RandomState(seed = None)
         
@@ -62,31 +70,75 @@ class MarkovChain(object):
             else:
                 s = 0
         else:
-            s = states.index(initial_state)
-        
+            s = initial_state
         
         # 2) Generator (infinite) loop
         while True:
             # 2.1) Yield the current state
-            yield states[s]
+            yield s
             # 2.2) Generates the next state :
             proba = T[s, :]
             s = rng.choice(n, p=proba)
         # end while True
-    # end markov_gen()
+    # end gen_integers()
 
 
+class HiddenMarkov(object):
+    def __init__(self, mc, obs_laws):
+        '''Hidden Markov model
+        
+        Parameters
+        ----------
+        mc : MarkovChain
+        obs_laws : sequence or dict
+            the observation law for each state.
+            The random variable law objects should come from `scipy.stats`.
+        '''
+        self.mc = mc
+        self.obs_laws = obs_laws
+    
+    def gen(self, initial_state=None, mc_rng=None, obs_seed=None, with_state=False):
+        '''generator of a sequence of observations
+        
+        Observations are generated using the *global* numpy.random state
+        (controlled with the seed function), because of scipy <0.16 limitation.
+        '''
+        np.random.seed(obs_seed)
+        mc_gen = self.mc.gen_integers(initial_state, mc_rng)
+        
+        for s_int in mc_gen:
+            s = self.mc.states[s_int]
+            law = self.obs_laws[s]
+            if with_state:
+                yield s_int, law.rvs()
+            else:
+                yield law.rvs()
+
+    # end gen()
 if __name__ == '__main__':
     # A quite persistent chain
     T = np.array([
-        [0.8, 0.2],
-        [0.1, 0.9]
+        [0.97, 0.03],
+        [0.10, 0.90]
     ])
-    mc = MarkovChain(T, ['X', '-'])
+    mc = MarkovChain(T, ['-', 'P'])
     print(mc.states)
     
     import itertools
-    gen = mc.trajectory_gen()
+    gen = mc.gen()
     
-    seq = [s for s in itertools.islice(gen, 20)]
+    seq = [str(s) for s in itertools.islice(gen, 30)]
     print(''.join(seq) )
+    
+    obs_laws = {
+        '-':stats.norm(0, 1),
+        'P':stats.norm(1, 1),
+    }
+    hm = HiddenMarkov(mc, obs_laws)
+    
+    obs = [o for o in itertools.islice(hm.gen(with_state=True), 1000)]
+    
+    import matplotlib.pyplot as plt
+    plt.plot(obs)
+    
+    plt.show()
