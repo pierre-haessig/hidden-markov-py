@@ -26,6 +26,9 @@ TODO:
 Usage example
 -------------
 
+.. highlight:: python
+
+
 Imports::
 
     import numpy as np
@@ -42,9 +45,8 @@ Create a Markov chain with two states::
     mc = MarkovChain(T, ['-', 'P'])
     print(mc.states)
     
-    
-    gen = mc.gen()
-    
+    # generate the sequence of states
+    gen = mc.gen() # a Python generator object
     seq = [str(s) for s in itertools.islice(gen, 30)]
     print(''.join(seq) )
 
@@ -57,7 +59,10 @@ Create a Hidden Markov model derived from the chain::
     hm = HiddenMarkov(mc, obs_laws)
     
     obs = [o for o in itertools.islice(hm.gen(with_state=True), 1000)]
-    
+    print(obs)
+
+Plot the sequence of observations::
+
     import matplotlib.pyplot as plt
     plt.plot(obs)
     
