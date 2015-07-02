@@ -115,6 +115,52 @@ class HiddenMarkov(object):
                 yield law.rvs()
 
     # end gen()
+
+    def state_estim(self, obs):
+        '''estimate the state sequence given a series of observations `obs`
+        
+        using Viterbi algorithm.
+        
+        Returns
+        -------
+        s_estim: 1-D array
+            the most probable state sequence (as integers)
+        '''
+        mc = self.mc
+        n = mc.n_states
+        T = mc.transit
+        logT = np.log(T)
+        m = len(obs)
+        obs_laws = self.obs_laws
+        
+        
+        max_ll = np.zeros((n,m))
+        argmax = np.zeros((n,m))
+        
+        # 1) Init
+        initial_proba = mc.initial_proba
+        if initial_proba is None:
+            initial_proba = np.ones(n)/n
+        max_ll[:,0] = np.log(initial_proba) + np.array(
+                        [obs_laws[s].logpdf(obs[0]) for s in mc.states])
+        argmax[:,0] = 0
+        
+        for i in range(m-1):
+            A = logT.T + max_ll[:,i]
+            argmax_next = A.argmax(axis=1)
+            argmax[:,i+1] = argmax_next
+            max_ll[:,i+1] = A[argmax_next,range(n)] + np.array(
+                            [obs_laws[s].logpdf(obs[i+1]) for s in mc.states])
+        
+        s_seq = np.zeros(m) - 1
+        
+        s_seq[-1] = np.argmax(max_ll[:,-1])
+        for i in range(1,m):
+            s_seq[m-i-1] = argmax[s_seq[m-i],m-i]
+        return s_seq
+    # end state_estim()
+
+
 if __name__ == '__main__':
     # A quite persistent chain
     T = np.array([
@@ -131,14 +177,22 @@ if __name__ == '__main__':
     print(''.join(seq) )
     
     obs_laws = {
-        '-':stats.norm(0, 1),
-        'P':stats.norm(1, 1),
+        '-':stats.norm(0, .1),
+        'P':stats.norm(1, .1),
     }
     hm = HiddenMarkov(mc, obs_laws)
     
-    obs = [o for o in itertools.islice(hm.gen(with_state=True), 1000)]
+    state_obs_seq = [o for o in itertools.islice(hm.gen(with_state=True), 1000)]
+    state_obs_seq = np.array(state_obs_seq)
     
+    s,o = state_obs_seq.T
+
+    s_seq_estim = hm.state_estim(o)
+    
+    # Plot
     import matplotlib.pyplot as plt
-    plt.plot(obs)
+    plt.plot(o)
+    plt.plot(s)
+    plt.plot(s_seq_estim)
     
     plt.show()
