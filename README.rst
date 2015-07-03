@@ -13,14 +13,11 @@ Implemented:
 * a `HiddenMarkov` class, that can generate observation sequences,
   with a given underlying Markov chain and given probability distribution
   of the observation, which is state dependent.
+* **Viterbi algorithm**, that can estimate the most probable state sequence,
+  given a HMM and a sequence of observations.
 
 Note: there is no restriction about the shape of the probability distribution.
 It doesn't have to be Gaussian for example.
-
-TODO:
-
-* Viterbi algorithm, that can estimate the most probable state sequence,
-  given a HMM and a sequence of observations.
 
 
 Usage example
