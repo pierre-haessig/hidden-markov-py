@@ -147,17 +147,25 @@ class HiddenMarkov(object):
         
         for i in range(m-1):
             A = logT.T + max_ll[:,i]
+            #print('A = ')
+            #print(A)
             argmax_next = A.argmax(axis=1)
+            #print('argmax_next')
+            #print(argmax_next)
             argmax[:,i+1] = argmax_next
-            max_ll[:,i+1] = A[argmax_next,range(n)] + np.array(
-                            [obs_laws[s].logpdf(obs[i+1]) for s in mc.states])
+            obs_ll = np.array([obs_laws[s].logpdf(obs[i+1]) for s in mc.states])
+            #print('obs_ll, for O={:.3f}'.format(obs[i+1]))
+            #print(obs_ll)
+            #print('max A')
+            #print(A[range(n),argmax_next])
+            max_ll[:,i+1] = A[range(n),argmax_next] + obs_ll
         
         s_seq = np.zeros(m) - 1
         
         s_seq[-1] = np.argmax(max_ll[:,-1])
         for i in range(1,m):
             s_seq[m-i-1] = argmax[s_seq[m-i],m-i]
-        return s_seq
+        return s_seq, max_ll, argmax
     # end state_estim()
 
 
@@ -177,22 +185,30 @@ if __name__ == '__main__':
     print(''.join(seq) )
     
     obs_laws = {
-        '-':stats.norm(0, .1),
-        'P':stats.norm(1, .1),
+        '-':stats.norm(0, .5),
+        'P':stats.norm(1, .5),
     }
     hm = HiddenMarkov(mc, obs_laws)
     
-    state_obs_seq = [o for o in itertools.islice(hm.gen(with_state=True), 1000)]
-    state_obs_seq = np.array(state_obs_seq)
-    
-    s,o = state_obs_seq.T
+    rng = np.random.RandomState(0)
+    n_pts = 100
 
-    s_seq_estim = hm.state_estim(o)
+    obs_gen = hm.gen(mc_rng=rng, obs_seed=0, with_state=True)
+    state_obs_seq = [o for o in itertools.islice(obs_gen, n_pts)]
+    state_obs_seq = np.array(state_obs_seq)
+    s,o = state_obs_seq.T
+    
+    # Viterbi estimation:
+    s_seq_estim, max_ll, argmax = hm.state_estim(o)
     
     # Plot
     import matplotlib.pyplot as plt
-    plt.plot(o)
-    plt.plot(s)
-    plt.plot(s_seq_estim)
+    plt.plot(o, 'k+-', lw=0.2, mew=1., label='obs')
+    plt.plot(s, 'b', label='state')
+    plt.plot(s_seq_estim, 'r', label='estim', lw=3, alpha=0.5)
+
+    plt.legend(loc='upper right', ncol=3)
+    plt.title('Most probable state sequence (Viterbi algorithm)')
+    plt.tight_layout()
     
     plt.show()
